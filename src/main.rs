@@ -15,6 +15,7 @@ extern crate serde_derive;
 extern crate unshare;
 
 mod error;
+mod mount;
 
 use std::env;
 use std::ffi::{OsStr, OsString};
@@ -27,6 +28,7 @@ use loadconf::Load;
 use unshare::ExitStatus;
 
 use error::*;
+use mount::Mount;
 
 /// The environment variable used to indicate that the process in inside the shared.
 const COMMAND_ENV_KEY: &'static str = concat!(env!("CARGO_PKG_NAME"), "_CONTAINER_INTERNAL");
@@ -114,6 +116,8 @@ struct Config {
     #[serde(default)]
     gid_map: Vec<GidMap>,
     chroot_dir: Option<PathBuf>,
+    #[serde(default)]
+    mount: Vec<Mount>,
 }
 
 impl Config {
@@ -140,7 +144,12 @@ impl Config {
 
     /// Configure the container after having entered.
     fn configure(self, _command: &mut process::Command) {
-        let Config { chroot_dir, .. } = self;
+        let Config { chroot_dir, mount, .. } = self;
+
+        for mount in mount {
+            println!("Mounting: {:#?}", mount);
+            mount.mount().expect("Mounting filesystems");
+        }
 
         if let Some(chroot_dir) = chroot_dir {
             let full_path = chroot_dir.canonicalize().expect("Canonicalizing chroot");

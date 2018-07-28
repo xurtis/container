@@ -22,191 +22,106 @@ use ::error::*;
 /// ```rust
 /// DirMount::bind("/proc", "/tmp/jail/proc").read_only().mount();
 /// ```
-#[derive(Clone, Debug)]
-pub struct Mount {
-    src: Option<PathBuf>,
-    target: PathBuf,
-    fstype: Option<PathBuf>,
-    flags: Option<MsFlags>,
-    mk_target: bool,
-    umount: bool,
-    mounted: Option<PathBuf>,
-}
-
-impl Mount {
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "option")]
+#[serde(rename_all = "snake_case")]
+pub enum Mount {
     /// Create a new mount from `src` to `target`.
     ///
     /// The file system type must be explicitly provided as along with the
     /// target and the source.
-    ///
-    /// ```rust
-    /// Mount::new("/dev/sda1", "/mnt", "ext4").mount();
-    /// ```
-    pub fn new<P: AsRef<Path>>(src: P, target: P, fstype: P) -> Mount {
-        Mount {
-            src: Some(src.as_ref().to_owned()),
-            target: target.as_ref().to_owned(),
-            fstype: Some(fstype.as_ref().to_owned()),
-            flags: None,
-            mk_target: false,
-            umount: false,
-            mounted: None,
-        }
-    }
-
+    Mount {
+        source: PathBuf,
+        target: PathBuf,
+        filesystem_type: PathBuf,
+        #[serde(default)]
+        flags: Vec<MountFlags>,
+        #[serde(default)]
+        make_target: bool,
+    },
     /// Update the mount flags on an existing mount.
-    ///
-    /// ```rust
-    /// Mount::remount("/home").read_only().mount();
-    /// ```
-    pub fn remount<P: AsRef<Path>>(target: P) -> Mount {
-        Mount {
-            src: None,
-            target: target.as_ref().to_owned(),
-            fstype: None,
-            flags: Some(MsFlags::MS_REMOUNT),
-            mk_target: false,
-            umount: false,
-            mounted: None,
-        }
-    }
-
-    /// Bind a directory to a new mount point.
-    ///
-    /// ```rust
-    /// Mount::bind("/lib", "/tmp/jail/lib").mount();
-    /// ```
-    pub fn bind<P: AsRef<Path>>(src: P, target: P) -> Mount {
-        Mount {
-            src: Some(src.as_ref().to_owned()),
-            target: target.as_ref().to_owned(),
-            fstype: None,
-            flags: Some(MsFlags::MS_BIND),
-            mk_target: false,
-            umount: false,
-            mounted: None,
-        }
-    }
-
-
-    /// Bind a directory and all mounts in its subtree to a new mount point.
-    ///
-    /// ```rust
-    /// Mount::recursive_bind("/proc", "/tmp/jail/proc").mount();
-    /// ```
-    pub fn recursive_bind<P: AsRef<Path>>(src: P, target: P) -> Mount {
-        Mount {
-            src: Some(src.as_ref().to_owned()),
-            target: target.as_ref().to_owned(),
-            fstype: None,
-            flags: Some(MsFlags::MS_BIND | MsFlags::MS_REC),
-            mk_target: false,
-            umount: false,
-            mounted: None,
-        }
-    }
-
+    Remount {
+        target: PathBuf,
+        #[serde(default)]
+        flags: Vec<MountFlags>,
+    },
     /// Update an existing mount point to be _shared_.
     ///
     /// This ensures that _mount_ and _unmount_ events that occur within the
     /// subtree of this mount point may propogate to peer mounts within the
     /// namespace.
-    pub fn shared<P: AsRef<Path>>(target: P) -> Mount {
-        Mount {
-            src: None,
-            target: target.as_ref().to_owned(),
-            fstype: None,
-            flags: Some(MsFlags::MS_SHARED),
-            mk_target: false,
-            umount: false,
-            mounted: None,
-        }
-    }
-
-
+    Shared {
+        target: PathBuf,
+        #[serde(default)]
+        flags: Vec<MountFlags>,
+    },
     /// Update an existing mount point to be _private_.
     ///
     /// This ensures that _mount_ and _unmount_ events that occur within the
     /// subtree of this mountpoint will not propogate to peer mounts within the
     /// namespace.
-    pub fn private<P: AsRef<Path>>(target: P) -> Mount {
-        Mount {
-            src: None,
-            target: target.as_ref().to_owned(),
-            fstype: None,
-            flags: Some(MsFlags::MS_PRIVATE),
-            mk_target: false,
-            umount: false,
-            mounted: None,
-        }
-    }
-
+    Private {
+        target: PathBuf,
+        #[serde(default)]
+        flags: Vec<MountFlags>,
+    },
     /// Update an existing mount point to be a _slave_.
     ///
     /// This ensures that _mount_ and _unmount_ events never propogate out of
     /// the subtree from the mount point but events will propogate into it.
-    pub fn slave<P: AsRef<Path>>(target: P) -> Mount {
-        Mount {
-            src: None,
-            target: target.as_ref().to_owned(),
-            fstype: None,
-            flags: Some(MsFlags::MS_SLAVE),
-            mk_target: false,
-            umount: false,
-            mounted: None,
-        }
-    }
-
+    Slave {
+        target: PathBuf,
+        #[serde(default)]
+        flags: Vec<MountFlags>,
+    },
     /// Update an existing mount point to be a _unbindable_.
     ///
     /// This has the same effect as [`Mount::private`](#method.provate) but
     /// also ensures the mount point, and its children, can't be mounted as a
     /// bind. Recursive bind mounts will simply have _unbindable_ mounts pruned.
-    pub fn unbindable<P: AsRef<Path>>(target: P) -> Mount {
-        Mount {
-            src: None,
-            target: target.as_ref().to_owned(),
-            fstype: None,
-            flags: Some(MsFlags::MS_UNBINDABLE),
-            mk_target: false,
-            umount: false,
-            mounted: None,
-        }
-    }
-
+    Unbindable {
+        target: PathBuf,
+        #[serde(default)]
+        flags: Vec<MountFlags>,
+    },
+    /// Bind a directory to a new mount point.
+    Bind {
+        source: PathBuf,
+        target: PathBuf,
+        #[serde(default)]
+        flags: Vec<MountFlags>,
+        #[serde(default)]
+        make_target: bool,
+    },
+    /// Bind a directory and all mounts in its subtree to a new mount point.
+    RecursiveBind {
+        source: PathBuf,
+        target: PathBuf,
+        #[serde(default)]
+        flags: Vec<MountFlags>,
+        #[serde(default)]
+        make_target: bool,
+    },
     /// Move a mount from an existing mount point to a new mount point.
-    pub fn relocate<P: AsRef<Path>>(src: P, target: P) -> Mount {
-        Mount {
-            src: Some(src.as_ref().to_owned()),
-            target: target.as_ref().to_owned(),
-            fstype: None,
-            flags: Some(MsFlags::MS_MOVE),
-            mk_target: false,
-            umount: false,
-            mounted: None,
-        }
-    }
+    Relocate {
+        source: PathBuf,
+        target: PathBuf,
+        #[serde(default)]
+        flags: Vec<MountFlags>,
+        #[serde(default)]
+        make_target: bool,
+    },
 }
 
-impl Mount {
-    fn add_flag(mut self, flag: MsFlags) -> Mount {
-        let current: MsFlags = self.flags.into_iter().collect();
-        self.flags = Some(current | flag);
-        self
-    }
-
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MountFlags {
     /// This simply takes a non-bind mount and adds the bind flag.
     ///
     /// This is useful if remounting bind mounts.
-    pub fn as_bind(self) -> Mount {
-        self.add_flag(MsFlags::MS_BIND)
-    }
-
+    Bind,
     /// Make directory changes on this filesystem synchronous.
-    pub fn synchronous_directories(self) -> Mount {
-        self.add_flag(MsFlags::MS_DIRSYNC)
-    }
-
+    SynchronousDirectories,
     /// Reduce on-disk updates of inode timestamps (atime, mtime, ctime) by
     /// maintaining these changes only in memory.  The on-disk timestamps are
     /// updated only when:
@@ -225,48 +140,23 @@ impl Mount {
     /// Examples  of  workloads  where  this  option  could be of significant
     /// benefit include frequent random writes to preallocated files, as well as
     /// cases where the MS_STRICTATIME mount option is also enabled.
-    #[cfg(not(any))]
-    pub fn lazy_access_time(self) -> Mount {
-        // self.add_flag(MsFlags::MS_LAZYATIME);
-        self
-    }
-
+    #[cfg(not)]
+    LazyAccessTime,
+    /// Permit mandatory locking on files in this filesystem.
+    MandatoryLock,
     /// Do not update access times for (all types of) files on this mount.
-    pub fn mandatory_locking(self) -> Mount {
-        self.add_flag(MsFlags::MS_MANDLOCK)
-    }
-
+    NoAccessTime,
     /// Do not allow access to devices (special files) on this mount.
-    pub fn no_access_time(self) -> Mount {
-        self.add_flag(MsFlags::MS_NOATIME)
-    }
-
-    /// Do not allow access to devices (special files) on this mount.
-    pub fn no_devices(self) -> Mount {
-        self.add_flag(MsFlags::MS_NODEV)
-    }
-
+    NoDevices,
     /// Do not update access times for directories on this mount.
-    pub fn no_directory_access_time(self) -> Mount {
-        self.add_flag(MsFlags::MS_NODIRATIME)
-    }
-
+    NoDirectoryAccessTime,
     /// Do not allow programs to be executed from this mount.
-    pub fn no_execute(self) -> Mount {
-        self.add_flag(MsFlags::MS_NOEXEC)
-    }
-
+    NoExecute,
     /// Do not honor set-user-ID and set-group-ID bits or file capabilities when
     /// executing programs from this mount.
-    pub fn no_setuid(self) -> Mount {
-        self.add_flag(MsFlags::MS_NOSUID)
-    }
-
+    NoSuid,
     /// Mount read-only.
-    pub fn read_only(self) -> Mount {
-        self.add_flag(MsFlags::MS_RDONLY)
-    }
-
+    ReadOnly,
     /// Update access time on files only if newer than the modification time.
     ///
     /// When a file on this mount is accessed, update the file's last
@@ -276,60 +166,313 @@ impl Mount {
     ///
     /// This option is useful for programs, such as mutt(1), that need to know
     /// when a file has been read since it was last modified.
-    pub fn relative_access_time(self) -> Mount {
-        self.add_flag(MsFlags::MS_RELATIME)
-    }
-
+    RelativeAccessTime,
     /// Suppress the display of certain warning messages in the kernel log.
-    pub fn silent(self) -> Mount {
-        self.add_flag(MsFlags::MS_SILENT)
-    }
-
+    Silent,
     /// Always update the last access time.
-    pub fn strict_access_time(self) -> Mount {
-        self.add_flag(MsFlags::MS_STRICTATIME)
+    StrictAccessTime,
+    /// Make writes on this mount synchronous.
+    Synchronous,
+}
+
+impl Into<MsFlags> for MountFlags {
+    fn into(self) -> MsFlags {
+        match self {
+            MountFlags::Bind                   => MsFlags::MS_BIND,
+            MountFlags::SynchronousDirectories => MsFlags::MS_DIRSYNC,
+            MountFlags::MandatoryLock          => MsFlags::MS_MANDLOCK,
+            MountFlags::NoAccessTime           => MsFlags::MS_NOATIME,
+            MountFlags::NoDevices              => MsFlags::MS_NODEV,
+            MountFlags::NoDirectoryAccessTime  => MsFlags::MS_NODIRATIME,
+            MountFlags::NoExecute              => MsFlags::MS_NOEXEC,
+            MountFlags::NoSuid                 => MsFlags::MS_NOSUID,
+            MountFlags::ReadOnly               => MsFlags::MS_RDONLY,
+            MountFlags::RelativeAccessTime     => MsFlags::MS_RELATIME,
+            MountFlags::Silent                 => MsFlags::MS_SILENT,
+            MountFlags::StrictAccessTime       => MsFlags::MS_STRICTATIME,
+            MountFlags::Synchronous            => MsFlags::MS_SYNCHRONOUS,
+        }
+    }
+}
+
+
+impl Mount {
+    /// Create a new mount from `src` to `target`.
+    ///
+    /// The file system type must be explicitly provided as along with the
+    /// target and the source.
+    ///
+    /// ```rust
+    /// Mount::new("/dev/sda1", "/mnt", "ext4").mount();
+    /// ```
+    pub fn new<P: AsRef<Path>>(src: P, target: P, fstype: P) -> Mount {
+        Mount::Mount {
+            source: src.as_ref().to_owned(),
+            target: target.as_ref().to_owned(),
+            filesystem_type: fstype.as_ref().to_owned(),
+            flags: Vec::new(),
+            make_target: false,
+        }
     }
 
-    /// Make writes on this mount synchronous.
-    pub fn synchronous(self) -> Mount {
-        self.add_flag(MsFlags::MS_SYNCHRONOUS)
+    /// Update the mount flags on an existing mount.
+    ///
+    /// ```rust
+    /// Mount::remount("/home").read_only().mount();
+    /// ```
+    pub fn remount<P: AsRef<Path>>(target: P) -> Mount {
+        Mount::Remount {
+            target: target.as_ref().to_owned(),
+            flags: Vec::new(),
+        }
+    }
+
+    /// Bind a directory to a new mount point.
+    ///
+    /// ```rust
+    /// Mount::bind("/lib", "/tmp/jail/lib").mount();
+    /// ```
+    pub fn bind<P: AsRef<Path>>(src: P, target: P) -> Mount {
+        Mount::Bind {
+            source: src.as_ref().to_owned(),
+            target: target.as_ref().to_owned(),
+            flags: Vec::new(),
+            make_target: false,
+        }
+    }
+
+
+    /// Bind a directory and all mounts in its subtree to a new mount point.
+    ///
+    /// ```rust
+    /// Mount::recursive_bind("/proc", "/tmp/jail/proc").mount();
+    /// ```
+    pub fn recursive_bind<P: AsRef<Path>>(src: P, target: P) -> Mount {
+        Mount::RecursiveBind {
+            source: src.as_ref().to_owned(),
+            target: target.as_ref().to_owned(),
+            flags: Vec::new(),
+            make_target: false,
+        }
+    }
+
+    /// Update an existing mount point to be _shared_.
+    ///
+    /// This ensures that _mount_ and _unmount_ events that occur within the
+    /// subtree of this mount point may propogate to peer mounts within the
+    /// namespace.
+    pub fn shared<P: AsRef<Path>>(target: P) -> Mount {
+        Mount::Shared {
+            target: target.as_ref().to_owned(),
+            flags: Vec::new(),
+        }
+    }
+
+
+    /// Update an existing mount point to be _private_.
+    ///
+    /// This ensures that _mount_ and _unmount_ events that occur within the
+    /// subtree of this mountpoint will not propogate to peer mounts within the
+    /// namespace.
+    pub fn private<P: AsRef<Path>>(target: P) -> Mount {
+        Mount::Private {
+            target: target.as_ref().to_owned(),
+            flags: Vec::new(),
+        }
+    }
+
+    /// Update an existing mount point to be a _slave_.
+    ///
+    /// This ensures that _mount_ and _unmount_ events never propogate out of
+    /// the subtree from the mount point but events will propogate into it.
+    pub fn slave<P: AsRef<Path>>(target: P) -> Mount {
+        Mount::Slave {
+            target: target.as_ref().to_owned(),
+            flags: Vec::new(),
+        }
+    }
+
+    /// Update an existing mount point to be a _unbindable_.
+    ///
+    /// This has the same effect as [`Mount::private`](#method.provate) but
+    /// also ensures the mount point, and its children, can't be mounted as a
+    /// bind. Recursive bind mounts will simply have _unbindable_ mounts pruned.
+    pub fn unbindable<P: AsRef<Path>>(target: P) -> Mount {
+        Mount::Unbindable {
+            target: target.as_ref().to_owned(),
+            flags: Vec::new(),
+        }
+    }
+
+    /// Move a mount from an existing mount point to a new mount point.
+    pub fn relocate<P: AsRef<Path>>(src: P, target: P) -> Mount {
+        Mount::Relocate {
+            source: src.as_ref().to_owned(),
+            target: target.as_ref().to_owned(),
+            flags: Vec::new(),
+            make_target: false,
+        }
+    }
+}
+
+impl Mount {
+    fn add_flag(mut self, flag: MountFlags) -> Mount {
+        match &mut self {
+            Mount::Mount         { flags, .. } => flags.push(flag),
+            Mount::Remount       { flags, .. } => flags.push(flag),
+            Mount::Shared        { flags, .. } => flags.push(flag),
+            Mount::Private       { flags, .. } => flags.push(flag),
+            Mount::Slave         { flags, .. } => flags.push(flag),
+            Mount::Unbindable    { flags, .. } => flags.push(flag),
+            Mount::Bind          { flags, .. } => flags.push(flag),
+            Mount::RecursiveBind { flags, .. } => flags.push(flag),
+            Mount::Relocate      { flags, .. } => flags.push(flag),
+        };
+        self
     }
 
     /// If the target directory does not exist, create it.
     pub fn make_target_dir(mut self) -> Mount {
-        self.mk_target = true;
-        self
+        match self {
+            Mount::Mount {
+                source,
+                target,
+                filesystem_type,
+                flags,
+                ..
+            } => Mount::Mount {
+                source,
+                target,
+                filesystem_type,
+                flags,
+                make_target: true,
+            },
+            Mount::Bind {
+                source,
+                target,
+                flags,
+                ..
+            } => Mount::Bind {
+                make_target: true,
+                source,
+                target,
+                flags,
+            },
+            Mount::RecursiveBind {
+                source,
+                target,
+                flags,
+                ..
+            } => Mount::RecursiveBind {
+                make_target: true,
+                source,
+                target,
+                flags,
+            },
+            Mount::Relocate {
+                source,
+                target,
+                flags,
+                ..
+            } => Mount::Relocate {
+                make_target: true,
+                source,
+                target,
+                flags,
+            },
+            _ => self,
+        }
     }
 
-    /// Unmount the target when finished.
-    pub fn unmount(mut self) -> Mount {
-        self.umount = true;
-        self
+    fn should_make_dir(&self) -> bool {
+        match self {
+            Mount::Mount         { make_target, .. } => *make_target,
+            Mount::Bind          { make_target, .. } => *make_target,
+            Mount::RecursiveBind { make_target, .. } => *make_target,
+            Mount::Relocate      { make_target, .. } => *make_target,
+            _ => false,
+        }
+    }
+
+    fn flags(&self) -> MsFlags {
+        let supplied = match self {
+            Mount::Mount         { flags, .. } => flags,
+            Mount::Remount       { flags, .. } => flags,
+            Mount::Shared        { flags, .. } => flags,
+            Mount::Private       { flags, .. } => flags,
+            Mount::Slave         { flags, .. } => flags,
+            Mount::Unbindable    { flags, .. } => flags,
+            Mount::Bind          { flags, .. } => flags,
+            Mount::RecursiveBind { flags, .. } => flags,
+            Mount::Relocate      { flags, .. } => flags,
+        };
+        let default = match self {
+            Mount::Mount         {..} => MsFlags::empty(),
+            Mount::Remount       {..} => MsFlags::MS_REMOUNT,
+            Mount::Shared        {..} => MsFlags::MS_SHARED,
+            Mount::Private       {..} => MsFlags::MS_PRIVATE,
+            Mount::Slave         {..} => MsFlags::MS_SLAVE,
+            Mount::Unbindable    {..} => MsFlags::MS_UNBINDABLE,
+            Mount::Bind          {..} => MsFlags::MS_BIND,
+            Mount::RecursiveBind {..} => MsFlags::MS_BIND | MsFlags::MS_REC,
+            Mount::Relocate      {..} => MsFlags::MS_MOVE,
+        };
+
+        let supplied: MsFlags = supplied.iter().map(|f| f.clone().into()).collect();
+        supplied | default
+    }
+
+    fn target(&self) -> &Path {
+        match self {
+            Mount::Mount         { target, .. } => target.as_path(),
+            Mount::Remount       { target, .. } => target.as_path(),
+            Mount::Shared        { target, .. } => target.as_path(),
+            Mount::Private       { target, .. } => target.as_path(),
+            Mount::Slave         { target, .. } => target.as_path(),
+            Mount::Unbindable    { target, .. } => target.as_path(),
+            Mount::Bind          { target, .. } => target.as_path(),
+            Mount::RecursiveBind { target, .. } => target.as_path(),
+            Mount::Relocate      { target, .. } => target.as_path(),
+        }
+    }
+
+    fn source(&self) -> Option<&Path> {
+        match self {
+            Mount::Mount         { source, .. } => Some(source.as_path()),
+            Mount::Bind          { source, .. } => Some(source.as_path()),
+            Mount::RecursiveBind { source, .. } => Some(source.as_path()),
+            Mount::Relocate      { source, .. } => Some(source.as_path()),
+            _ => None,
+        }
+    }
+
+    fn filesystem_type(&self) -> Option<&Path> {
+        match self {
+            Mount::Mount { filesystem_type, .. } => Some(filesystem_type.as_path()),
+            _ => None,
+        }
     }
 }
 
 impl Mount {
     /// Mount using the given specification.
-    pub fn mount(&mut self) -> Result<()> {
-        let target = self.target.with_nix_path(|s| {
-            Path::new(s.to_string_lossy().as_ref()).to_path_buf()
-        })?;
+    pub fn mount(self) -> Result<()> {
 
-        if self.mk_target {
-            create_dir_all(&target)?;
+        if self.should_make_dir() {
+            create_dir_all(self.target())?;
         }
 
         let data: Option<&PathBuf> = None;
 
+        println!("Flags: {:?}" , self.flags());
+
         mount(
-            self.src.as_ref(),
-            &self.target,
-            self.fstype.as_ref(),
-            self.flags.into_iter().collect(),
+            self.source(),
+            self.target(),
+            self.filesystem_type(),
+            self.flags(),
             data
         )?;
-
-        self.mounted = Some(target.canonicalize()?);
 
         Ok(())
     }
