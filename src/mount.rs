@@ -464,8 +464,6 @@ impl Mount {
 
         let data: Option<&PathBuf> = None;
 
-        println!("Flags: {:?}" , self.flags());
-
         mount(
             self.source(),
             self.target(),

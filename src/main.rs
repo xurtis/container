@@ -147,7 +147,6 @@ impl Config {
         let Config { chroot_dir, mount, .. } = self;
 
         for mount in mount {
-            println!("Mounting: {:#?}", mount);
             mount.mount().expect("Mounting filesystems");
         }
 
@@ -171,7 +170,6 @@ fn main() -> Result<()> {
 
 /// Set up the unshare externally.
 fn setup_unshare(config: Config) -> Result<()> {
-    eprintln!("Configuring unshare container.");
     let program = env::current_exe().expect("Determine executable name");
     let mut command = unshare::Command::new(program);
     command.args(child_command().as_ref());
@@ -188,7 +186,6 @@ fn setup_unshare(config: Config) -> Result<()> {
 
 /// Run the command from inside the unshare.
 fn run_child(config: Config) -> Result<()> {
-    eprintln!("Configuring child command.");
     let child = child_command();
     let child_args: &[OsString] = child.as_ref();
 
