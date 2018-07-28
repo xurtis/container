@@ -33,14 +33,49 @@ const COMMAND_ENV_VAL: &'static str = concat!(env!("CARGO_PKG_NAME"), "/", env!(
 /// The default command to run once in the container
 const DEFAULT_COMMAND: &'static str = "/bin/sh";
 
+/// Serialisable namespaces.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Namespace {
+    Mount,
+    Uts,
+    Ipc,
+    User,
+    Pid,
+    Net,
+    Cgroup,
+}
+
+impl Into<unshare::Namespace> for Namespace {
+    fn into(self) -> unshare::Namespace {
+        match self {
+            Namespace::Mount  => unshare::Namespace::Mount,
+            Namespace::Uts    => unshare::Namespace::Uts,
+            Namespace::Ipc    => unshare::Namespace::Ipc,
+            Namespace::User   => unshare::Namespace::User,
+            Namespace::Pid    => unshare::Namespace::Pid,
+            Namespace::Net    => unshare::Namespace::Net,
+            Namespace::Cgroup => unshare::Namespace::Cgroup,
+        }
+    }
+}
+
+impl<'a> Into<unshare::Namespace> for &'a Namespace {
+    fn into(self) -> unshare::Namespace {
+        self.clone().into()
+    }
+}
+
 /// Configuration for the container.
 #[derive(Debug, Default, Deserialize)]
 struct Config {
+    namespaces: Vec<Namespace>,
 }
 
 impl Config {
     /// Configure the container prior to the container.
-    fn unshare(&self, _command: &mut unshare::Command) {
+    fn unshare(&self, command: &mut unshare::Command) {
+        command.unshare(self.namespaces.iter().map(Into::into));
     }
 
     /// Configure the container after having entered.
