@@ -113,12 +113,13 @@ struct Config {
     uid_map: Vec<UidMap>,
     #[serde(default)]
     gid_map: Vec<GidMap>,
+    chroot_dir: Option<PathBuf>,
 }
 
 impl Config {
     /// Configure the container prior to the container.
     fn unshare(self, command: &mut unshare::Command) {
-        let Config { namespaces, uid_map, gid_map, uid, gid } = self;
+        let Config { namespaces, uid_map, gid_map, uid, gid, .. } = self;
         command.unshare(namespaces.into_iter().map(Namespace::into));
         command.set_id_maps(
             uid_map.into_iter().map(UidMap::into).collect(),
@@ -139,6 +140,13 @@ impl Config {
 
     /// Configure the container after having entered.
     fn configure(self, _command: &mut process::Command) {
+        let Config { chroot_dir, .. } = self;
+
+        if let Some(chroot_dir) = chroot_dir {
+            let full_path = chroot_dir.canonicalize().expect("Canonicalizing chroot");
+            env::set_current_dir(&full_path);
+            nix::unistd::chroot(&full_path).expect("Change into chroot");
+        }
     }
 }
 
