@@ -1,0 +1,113 @@
+# Example configuration file for container.
+#
+# This configuration file is searched for in the following locations:
+#
+# ./container
+# ./container.toml
+# ./.container
+# ./.container.toml
+# ~/.container
+# ~/.container.toml
+# ~/.config/container
+# ~/.config/container.toml
+# ~/.config/container/config
+# ~/.config/container/config.toml
+# /etc/.config/container
+# /etc/.config/container.toml
+# /etc/.config/container/config
+# /etc/.config/container/config.toml
+#
+# With this file configured, simply pass the `configure` command the
+# command you wich to execute in the container.
+#
+# For more details on the uses of this tool see user_namespaces(7).
+
+# A list of the namespaces you want to unshare and isolate.
+#
+# See unshare(2) for more details on the effects of these.
+namespaces = [
+	"user",
+	"mount",
+	"pid",
+	# "uts",
+	# "ipc",
+	# "net",
+	# "cgroup",
+]
+
+# The directory to chroot into after entering namespaces and setting up
+# mountpoints.
+#
+# Relative to the working directory when run.
+# Does not support expansion.
+chroot_dir = "/path/to/container/root"
+
+# The mapping between UIDs inside and outside the container.
+#
+# For more information see subuid(5).
+[[uid_map]]
+	# The starting UID inside the region.
+	inside = 0
+	# The starting UID to map to outside the region.
+	outside = 100000
+	# The number of consecutive UIDs to map.
+	count = 1
+
+# The mapping between GIDs inside and outside the container.
+#
+# For more information see subgid(5).
+[[gid_map]]
+	# The starting UID inside the region.
+	inside = 0
+	# The starting UID to map to outside the region.
+	outside = 100000
+	# The number of consecutive UIDs to map.
+	count = 1
+
+[[uid_map]]
+	inside = 1000
+	outside = 1000
+	count = 1
+
+[[gid_map]]
+	inside = 1000
+	outside = 1000
+	count = 1
+
+# Mounting options are reflective of the options in mount(2).
+#
+# The different options for mounts are:
+#	- Mount
+#	- Remount
+#	- Shared
+#	- Private
+#	- Slave
+#	- Unbindable
+#	- Bind
+#	- RecursiveBind
+#	- Relocate
+#
+# For each, the source, target, and filesystem_type can be set.
+
+
+[[mount]]
+option = "recursive_bind"
+source = "/sys"
+target = "/path/to/container/root/sys"
+
+[[mount]]
+option = "recursive_bind"
+source = "/dev"
+target = "/path/to/container/root/dev"
+
+[[mount]]
+option = "mount"
+source = "proc"
+target = "/path/to/container/root/proc"
+filesystem_type = "proc"
+
+[[mount]]
+option = "mount"
+source = "tmpfs"
+target = "/path/to/container/root/tmp"
+filesystem_type = "tmpfs"
