@@ -4,7 +4,7 @@ use std::process;
 
 use libc::{uid_t, gid_t};
 use unshare;
-use nix::unistd::{chroot, sethostname, setuid, setgid, Uid, Gid};
+use nix::unistd::{chroot, sethostname, setuid, setgid, setgroups, Uid, Gid};
 
 use error::*;
 use mount::Mount;
@@ -125,6 +125,12 @@ impl Config {
             );
             env::set_current_dir(&working_dir)
                 .chain_err(|| ErrorKind::EnterWorkingDir)?;
+        }
+
+        if let Some(gid) = gid {
+            setgroups(&[Gid::from_raw(gid)])
+                    .map_err(Error::from)
+                    .chain_err(|| ErrorKind::SetUser)?;
         }
 
         if uses_root {
