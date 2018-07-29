@@ -25,3 +25,7 @@ error_chain!{
         }
     }
 }
+
+pub type Failure = Result<()>;
+
+macro_rules! ok { () => (Ok(())) }
