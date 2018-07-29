@@ -26,7 +26,7 @@ use std::process;
 use loadconf::Load;
 
 use error::*;
-use config::Config;
+use config::*;
 
 /// The environment variable used to indicate that the process in inside the shared.
 const COMMAND_ENV_KEY: &'static str = concat!(env!("CARGO_PKG_NAME"), "_CONTAINER_INTERNAL");

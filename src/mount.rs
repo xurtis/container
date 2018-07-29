@@ -1,8 +1,7 @@
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 
-use nix::NixPath;
-use nix::mount::{mount, umount, MsFlags};
+use nix::mount::{mount, MsFlags};
 
 // TODO: MS_LAZYATIME (not currently in libc)
 
@@ -196,6 +195,7 @@ impl Into<MsFlags> for MountFlags {
 }
 
 
+#[cfg(not)]
 impl Mount {
     /// Create a new mount from `src` to `target`.
     ///
@@ -316,6 +316,7 @@ impl Mount {
 }
 
 impl Mount {
+    #[allow(dead_code)]
     fn add_flag(mut self, flag: MountFlags) -> Mount {
         match &mut self {
             Mount::Mount         { flags, .. } => flags.push(flag),
@@ -332,7 +333,8 @@ impl Mount {
     }
 
     /// If the target directory does not exist, create it.
-    pub fn make_target_dir(mut self) -> Mount {
+    #[allow(dead_code)]
+    pub fn make_target_dir(self) -> Mount {
         match self {
             Mount::Mount {
                 source,

@@ -4,10 +4,107 @@ use std::process;
 
 use libc::{uid_t, gid_t};
 use unshare;
-use nix::unistd::chroot;
+use nix::unistd::{chroot, sethostname};
 
 use error::*;
 use mount::Mount;
+
+/// Configuration for the container.
+#[derive(Debug, Default, Deserialize)]
+pub struct Config {
+    // Namespaces to unshare
+    #[serde(default)]
+    namespaces: Vec<Namespace>,
+
+    // User namespace configuration
+    #[serde(default)]
+    uid: Option<uid_t>,
+    #[serde(default)]
+    gid: Option<gid_t>,
+    #[serde(default)]
+    uid_map: Vec<UidMap>,
+    #[serde(default)]
+    gid_map: Vec<GidMap>,
+
+    // Mount configuration
+    #[serde(default)]
+    #[serde(rename = "mount")]
+    mounts: Vec<Mount>,
+
+    // Uts COnfiguration
+    hostname: Option<String>,
+
+    // Additional configuration
+    chroot_dir: Option<PathBuf>,
+    working_dir: Option<PathBuf>,
+}
+
+impl Config {
+    /// Configure the container prior to the container.
+    pub fn unshare(self, command: &mut unshare::Command) -> Failure {
+        let Config { namespaces, uid_map, gid_map, uid, gid, .. } = self;
+        command.unshare(namespaces.into_iter().map(Namespace::into));
+        command.set_id_maps(
+            uid_map.into_iter().map(UidMap::into).collect(),
+            gid_map.into_iter().map(GidMap::into).collect(),
+        );
+
+        if let (
+            Some(newuidmap), Some(newgidmap)
+        ) = (
+            find_exec("newuidmap"), find_exec("newgidmap")
+        ) {
+            command.set_id_map_commands(newuidmap, newgidmap);
+        }
+
+        if let Some(uid) = uid {
+            command.uid(uid);
+        }
+        if let Some(gid) = gid {
+            command.gid(gid);
+        }
+
+        ok!()
+    }
+
+    /// Configure the container after having entered.
+    pub fn configure(self, _command: &mut process::Command) -> Failure {
+        let Config { chroot_dir, working_dir, mounts, hostname, .. } = self;
+
+        if let Some(hostname) = hostname {
+            sethostname(&hostname).chain_err(|| ErrorKind::SetHostName)?;
+        }
+
+        for mount in mounts {
+            mount.mount().chain_err(|| ErrorKind::SetMount)?;
+        }
+
+        if let Some(ref chroot_dir) = chroot_dir {
+            chroot_dir.canonicalize()
+                .map_err(Error::from)
+                .and_then(|path| {
+                    env::set_current_dir(&path)?;
+                    Ok(path)
+                })
+                .and_then(|path| {
+                    chroot(&path)?;
+                    ok!()
+                })
+                .chain_err(|| ErrorKind::EnterChroot)?;
+        }
+
+        if let Some(working_dir) = working_dir {
+            ensure!(
+                working_dir.is_absolute() || chroot_dir.is_none(),
+                ErrorKind::RelativeWorkingDir
+            );
+            env::set_current_dir(&working_dir)
+                .chain_err(|| ErrorKind::EnterWorkingDir)?;
+        }
+
+        ok!()
+    }
+}
 
 /// Serialisable namespaces.
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -69,66 +166,6 @@ impl Into<unshare::GidMap> for GidMap {
             outside_gid: outside,
             count
         }
-    }
-}
-
-/// Configuration for the container.
-#[derive(Debug, Default, Deserialize)]
-pub struct Config {
-    #[serde(default)]
-    namespaces: Vec<Namespace>,
-    #[serde(default)]
-    uid: uid_t,
-    #[serde(default)]
-    gid: gid_t,
-    #[serde(default)]
-    uid_map: Vec<UidMap>,
-    #[serde(default)]
-    gid_map: Vec<GidMap>,
-    chroot_dir: Option<PathBuf>,
-    #[serde(default)]
-    mount: Vec<Mount>,
-}
-
-impl Config {
-    /// Configure the container prior to the container.
-    pub fn unshare(self, command: &mut unshare::Command) -> Failure {
-        let Config { namespaces, uid_map, gid_map, uid, gid, .. } = self;
-        command.unshare(namespaces.into_iter().map(Namespace::into));
-        command.set_id_maps(
-            uid_map.into_iter().map(UidMap::into).collect(),
-            gid_map.into_iter().map(GidMap::into).collect(),
-        );
-
-        if let (
-            Some(newuidmap), Some(newgidmap)
-        ) = (
-            find_exec("newuidmap"), find_exec("newgidmap")
-        ) {
-            command.set_id_map_commands(newuidmap, newgidmap);
-        }
-
-        command.uid(uid);
-        command.gid(gid);
-
-        ok!()
-    }
-
-    /// Configure the container after having entered.
-    pub fn configure(self, _command: &mut process::Command) -> Failure {
-        let Config { chroot_dir, mount, .. } = self;
-
-        for mount in mount {
-            mount.mount()?;
-        }
-
-        if let Some(chroot_dir) = chroot_dir {
-            let full_path = chroot_dir.canonicalize()?;
-            env::set_current_dir(&full_path)?;
-            chroot(&full_path)?;
-        }
-
-        ok!()
     }
 }
 
