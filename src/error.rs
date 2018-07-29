@@ -18,10 +18,10 @@ error_chain!{
 
     // Internally defined errors.
     errors {
-        UnshareExit {
+        UnshareExit(status: ::unshare::ExitStatus) {
             description("The unshared was unsuccessful")
         }
-        CommandExit {
+        CommandExit(status: ::std::process::ExitStatus) {
             description("The requested command was unsuccessful")
         }
         RelativeWorkingDir {
@@ -38,6 +38,9 @@ error_chain!{
         }
         SetHostName {
             description("Failed to set the host name of the container")
+        }
+        SetUser {
+            description("Failed to set user after configuring container")
         }
     }
 }

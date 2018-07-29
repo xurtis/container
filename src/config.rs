@@ -83,7 +83,7 @@ impl Config {
     }
 
     /// Configure the container after having entered.
-    pub fn configure(self, command: &mut process::Command) -> Failure {
+    pub fn configure(self, _command: &mut process::Command) -> Failure {
         let uses_root = self.uses_root();
 
         let Config {
@@ -128,11 +128,14 @@ impl Config {
         }
 
         if uses_root {
-            if let Some(uid) = uid {
-                setuid(Uid::from_raw(uid));
-            }
             if let Some(gid) = gid {
-                setgid(Gid::from_raw(gid));
+                setgid(Gid::from_raw(gid))
+                    .map_err(Error::from)
+                    .chain_err(|| ErrorKind::SetUser)?;
+            }
+            if let Some(uid) = uid {
+                setuid(Uid::from_raw(uid))
+                    .chain_err(|| ErrorKind::SetUser)?;
             }
         }
 

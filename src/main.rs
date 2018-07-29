@@ -57,11 +57,12 @@ fn setup_unshare(config: Config) -> Failure {
 
     config.unshare(&mut command)?;
 
-    if !command.status()?.success() {
-        return Err(ErrorKind::UnshareExit.into());
-    }
-
-    ok!()
+    command.status()
+        .map_err(Error::from)
+        .and_then(|status| match status {
+            unshare::ExitStatus::Exited(0) => ok!(),
+            _ => Err(ErrorKind::UnshareExit(status).into()),
+        })
 }
 
 /// Run the command from inside the unshare.
@@ -75,11 +76,12 @@ fn run_child(config: Config) -> Failure {
 
     config.configure(&mut command)?;
 
-    if !command.status()?.success() {
-        return Err(ErrorKind::CommandExit.into());
-    }
-
-    ok!()
+    command.status()
+        .map_err(Error::from)
+        .and_then(|status| match status.code() {
+            Some(0) => ok!(),
+            _ => Err(ErrorKind::CommandExit(status).into()),
+        })
 }
 
 /// Determine the command to run in the child.
