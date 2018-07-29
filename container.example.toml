@@ -57,6 +57,9 @@ gid = 1000
 
 # The mapping between UIDs inside and outside the container.
 #
+# If hostname, chroot_dir, or and mounts are set, then a root user must
+# be mapped.
+#
 # For more information see subuid(5).
 [[uid_map]]
 	# The starting UID inside the region.
