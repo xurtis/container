@@ -4,7 +4,7 @@ use std::process;
 
 use libc::{uid_t, gid_t};
 use unshare;
-use nix::unistd::{chroot, sethostname};
+use nix::unistd::{chroot, sethostname, setuid, setgid, Uid, Gid};
 
 use error::*;
 use mount::Mount;
@@ -42,7 +42,17 @@ pub struct Config {
 impl Config {
     /// Configure the container prior to the container.
     pub fn unshare(self, command: &mut unshare::Command) -> Failure {
-        let Config { namespaces, uid_map, gid_map, uid, gid, .. } = self;
+        let uses_root = self.uses_root();
+
+        let Config {
+            namespaces,
+            uid_map,
+            gid_map,
+            uid,
+            gid,
+            ..
+        } = self;
+
         command.unshare(namespaces.into_iter().map(Namespace::into));
         command.set_id_maps(
             uid_map.into_iter().map(UidMap::into).collect(),
@@ -57,19 +67,34 @@ impl Config {
             command.set_id_map_commands(newuidmap, newgidmap);
         }
 
-        if let Some(uid) = uid {
-            command.uid(uid);
-        }
-        if let Some(gid) = gid {
-            command.gid(gid);
+        if uses_root {
+            command.uid(0);
+            command.gid(0);
+        } else {
+            if let Some(uid) = uid {
+                command.uid(uid);
+            }
+            if let Some(gid) = gid {
+                command.uid(gid);
+            }
         }
 
         ok!()
     }
 
     /// Configure the container after having entered.
-    pub fn configure(self, _command: &mut process::Command) -> Failure {
-        let Config { chroot_dir, working_dir, mounts, hostname, .. } = self;
+    pub fn configure(self, command: &mut process::Command) -> Failure {
+        let uses_root = self.uses_root();
+
+        let Config {
+            chroot_dir,
+            working_dir,
+            mounts,
+            hostname,
+            uid,
+            gid,
+            ..
+        } = self;
 
         if let Some(hostname) = hostname {
             sethostname(&hostname).chain_err(|| ErrorKind::SetHostName)?;
@@ -102,7 +127,23 @@ impl Config {
                 .chain_err(|| ErrorKind::EnterWorkingDir)?;
         }
 
+        if uses_root {
+            if let Some(uid) = uid {
+                setuid(Uid::from_raw(uid));
+            }
+            if let Some(gid) = gid {
+                setgid(Gid::from_raw(gid));
+            }
+        }
+
         ok!()
+    }
+
+    /// The inner program needs to start as root.
+    fn uses_root(&self) -> bool {
+        self.hostname.is_some()
+            || self.chroot_dir.is_some()
+            || self.mounts.len() > 0
     }
 }
 

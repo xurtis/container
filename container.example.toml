@@ -29,8 +29,8 @@ namespaces = [
 	"user",
 	"mount",
 	"pid",
-	# "uts",
-	# "ipc",
+	"uts",
+	"ipc",
 	# "net",
 	# "cgroup",
 ]
@@ -41,6 +41,19 @@ namespaces = [
 # Relative to the working directory when run.
 # Does not support expansion.
 chroot_dir = "/path/to/container/root"
+
+# The directory to change to before running the command.
+#
+# Relative to the working directory.
+# Must be absolute if a chroot is set.
+working_dir = "/path/to/working/dir"
+
+# Hostname of the container.
+hostname = "container"
+
+# UID and GID to run the command as.
+uid = 1000
+gid = 1000
 
 # The mapping between UIDs inside and outside the container.
 #
